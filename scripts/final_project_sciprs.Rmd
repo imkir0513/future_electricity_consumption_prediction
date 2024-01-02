@@ -1,0 +1,390 @@
+---
+title: 'Stabilizing Energy Supplies and Forecasting Future Energy Use'
+author: 'Group 9'
+date: '`r format(Sys.Date(), "%Y, %B %d")`'
+output: distill::distill_article
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  error = FALSE,
+  warning = FALSE)
+```
+
+### Preliminary setup
+> Load the library package, :
+
+```{r}
+library("dplyr") # Data wrangling
+library("tidyverse")
+library("lubridate")
+library("ggplot2")
+library("ggthemes")
+library("gridExtra") 
+library("quantmod")
+library("xts")
+library("zoo")
+library("forecast")
+library("fpp") 
+library("fpp2")
+library("tseries") 
+library("TSstudio")
+library('IRdisplay')
+library("htmlwidgets")
+library("RQuantLib")
+library("fpp2")
+```
+
+### Data loading
+> We collected the past ten years data from PJM interconnection LLC, which is a regional transmission organization, which serves thirteen states for electric transmission. 
+
+```{r}
+setwd('/Users/meizhuchen/Desktop/Columbia/Columbia_S2/APAN_5205/Project/')
+data2012 <- read.csv("hrl_load_estimated_2012.csv")
+data2013 <- read.csv("hrl_load_estimated_2013.csv")
+data2014 <- read.csv("hrl_load_estimated_2014.csv")
+data2015 <- read.csv("hrl_load_estimated_2015.csv")
+data2016 <- read.csv("hrl_load_estimated_2016.csv")
+data2017 <- read.csv("hrl_load_estimated_2017.csv")
+data2018 <- read.csv("hrl_load_estimated_2018.csv")
+data2019 <- read.csv("hrl_load_estimated_2019.csv")
+data2020 <- read.csv("hrl_load_estimated_2020.csv")
+data2021 <- read.csv("hrl_load_estimated_2021.csv")
+```
+
+### Integrate the past ten years data
+
+```{r}
+data<-rbind(data2012,data2013,data2014,data2015,data2016,data2017,data2018,data2019,data2020,data2021)
+```
+
+# Data exploration
+> There are 87,673 rows and 6 variables in our dataset, including datetime_beginning_utc, datetime_beginning_ept, datetime_ending_utc, datetime_ending_ept, load_area, and estimated_load_hourly. 
+
+```{r}
+glimpse(data)
+```
+
+### Delete the unnecessary columns
+> Since we just need to know the datetime of energy load hourly, we don't need the ending datetime variables, so we deleted the datetime_ending_utc and datetime_ending_ept variables. Besides, we focused on the data from the American Electric Power company in our research which covers the Eastern part of the U.S, we just need the EPT datetime, so we also deleted the datetime_beginning_utc variable.
+
+```{r}
+df<-subset(data, select = c(-datetime_beginning_utc,-datetime_ending_utc, -datetime_ending_ept))
+glimpse(df)
+```
+
+### Change datatype and rename the variable
+> Changed the datatype of datetime_beginning_ept variable from string to datetime and rename it as datetime
+
+```{r}
+df$datetime_beginning_ept<-mdy_hms(df$datetime_beginning_ept)
+colnames(df)[1]="dt"
+colnames(df)[3]="energy_use"
+glimpse(df)
+```
+
+### Check if there are missing values in the data loaded
+> There is no missing values in the dataset.
+
+```{r}
+colSums(is.na(df))>0
+```
+
+### Data visualization
+> Quick visualize the data to see if there is any unusual situation in the dataset.
+
+```{r}
+ggplot(df, aes(x=dt,y=energy_use))+geom_line()
+```
+
+### Remove the outliner from the dataset.
+> We found out that there was an unusual energy usage at the end of 2012, so we decided to remove the data from 2012 Besides, we also noticed that there is no complete data in 2022, so we deleted the data from 2022 as well.After removal, there are 78,888 rows remaining in the dataset.
+
+```{r}
+df<-subset(df, year(dt)!=2012)
+df<-subset(df, year(dt)!=2022)
+glimpse(df)
+```
+
+### Check the chart again
+> The data looks better than the previous one. In the end, we keep the data from 2013 to 2022 and 3 variables which include DateTime, load_area, and estimated_load_hourly.
+
+```{r}
+ggplot(df, aes(x=dt,y=energy_use))+geom_line()
+```
+
+### Export new file
+```{r}
+write.table(df,file="/Users/meizhuchen/Desktop/Columbia/Columbia_S2/APAN_5205/Project//new data.csv",sep=",",row.names=F, na = "NA",append=TRUE,col.names=FALSE)
+```
+
+### Aggregate the hourly data into daily data
+```{r}
+df1=df
+df1$dt<-as.Date(df1$dt)
+df1<-aggregate(energy_use~dt, df1, sum)
+glimpse(df1)
+```
+
+### Aggregate the daily data into monthly data
+```{r}
+df2=df1
+df2$dt <- format(as.Date(df1$dt), "%Y-%m")
+df2<-aggregate(energy_use~dt, df2, sum)
+glimpse(df2)
+```
+
+### Build up a times series dataset
+```{r}
+#By day
+ts1<-ts(data=df1$energy_use,
+    start=c(lubridate::year(min(df1$dt)), lubridate::yday(min(df1$dt))),
+    frequency=365)
+ts_info(ts1)
+
+
+#By month
+df2<-subset(df2, select = c(-dt))
+ts2<-ts(df2,start = c(2013,01), end = c(2021,12),frequency = 12)
+class(ts2)
+ts_info(ts2)
+```
+
+### Add more time features into the datasets.
+```{r}
+# Add hour feature
+df<-df %>%
+  mutate(hour=hour(dt))
+
+# Add weekdays and holiday features
+df1<-df1 %>%
+  mutate(weekdays=weekdays(dt),
+         holiday=isHoliday("UnitedStates", as.Date(df1$dt)))
+```
+
+
+# EDA
+### By hour
+```{r}
+ggplot(df, aes(hour, energy_use)) + 
+  geom_bar(stat='identity', aes(fill = hour)) +
+  xlab("hour") +
+  ylab("energy") 
+```
+
+### By weekdays
+```{r}
+ggplot(df1, aes(weekdays, energy_use)) + 
+  geom_bar(stat='identity', aes(fill = weekdays)) +
+  xlab("weekdays") +
+  ylab("energy") 
+```
+
+### By holidays
+```{r}
+ggplot(df1, aes(holiday, energy_use)) + 
+  geom_bar(stat='identity', aes(fill = holiday)) +
+  xlab("holiday or not") +
+  ylab("energy") 
+```
+
+### By day
+```{r}
+ts_plot(ts1, title="Hourly Energy Consumption - AEP")
+```
+
+### Decompose
+```{r}
+ts_decompose(ts1)
+```
+
+### Heatmap
+```{r}
+ts_heatmap(ts1)
+```
+
+### By month
+```{r}
+ts_quantile(df1, period="monthly")
+```
+
+### By month
+```{r}
+ggseasonplot(ts2)
+```
+
+### By month
+```{r}
+ggseasonplot(ts2,polar=T)
+```
+
+
+# Data Modeling
+
+### Split the data into train and test
+> Since the test data contains 24 months, we will be constructing forecasts for 24 periods.
+
+```{r}
+train = window(ts2,end=c(2019,12))
+test = window(ts2, start=c(2020,01))
+length(test)
+```
+
+# Simple Forecaecasting methods
+### Method
+```{r}
+average_model = meanf(train,h = 24) # Average Method
+naive_model = naive(train,h=24) #Naive Method
+seasonal_naive_model = snaive(train,h=24) #Seasonal Native Method
+drift_model = rwf(train,h=24,drift = T) # Drift Method
+```
+
+### Accuracy
+```{r}
+rbind(average_model = accuracy(f = average_model,x = ts2)[2,],
+      naive_model = accuracy(f = naive_model,x = ts2)[2,],
+      seasonal_naive_model = accuracy(f = seasonal_naive_model,x = ts2)[2,],
+      drift_model = accuracy(f = drift_model,x = ts2)[2,]
+      )
+```
+
+### Visusalization Forecasts
+```{r}
+autoplot(train)+
+  autolayer(average_model,PI = F,size=1.1,series = 'Average Model')+
+  autolayer(naive_model,PI=F,size=1.1, series='Naive Model')+
+  autolayer(seasonal_naive_model,PI=F,size=1.1,series='Seasonal Naive Model')+
+  autolayer(drift_model,PI=F,size=1.1,series='Drift Model')+
+  autolayer(test)
+```
+
+# Exponential Smoothing Models
+>Forecasts are weighted averages of past observations with the weights decaying exponentially such that recent observations get weighted more than distant observations.
+
+### Method
+```{r}
+ses_model = ses(train,h = 24) # Simple exponential smoothing, calculated using weighted averages, most recent observations get the heaviest weight.
+holt_model = holt(train,h=24) # Holt’s Method, extends simple exponential smoothing to allow the forecasting of data with a trend
+holt_damped_model = holt(train,h=24,damped = T) #Holt’s Method with Damping, forecasts generally display a constant trend indefinitely into the future.
+```
+
+### Accuracy
+```{r}
+rbind(ses_model = accuracy(f = ses_model,x = ts2)[2,],
+      holt_model = accuracy(f = holt_model,x = ts2)[2,],
+      holt_damped_model = accuracy(f = holt_damped_model,x = ts2)[2,]
+      )
+```
+
+### Visusalization Forecasts
+```{r}
+autoplot(train)+
+  autolayer(ses_model,PI = F,size=1.1,series = 'ses_model')+
+  autolayer(holt_model,PI=F,size=1.1, series='holt_model')+
+  autolayer(holt_damped_model,PI=F,size=1.1,series='holt_damped_model')
+  autolayer(test)
+```
+
+# ETS Models
+>ETS models in R are handled by ets() from library(forecast). Unlike functions such as naive(), ses(), hw() functions, the ets() function does not produce forecasts. Rather, it estimates the model parameters and returns information on the fitted model.
+
+### Method
+```{r}
+# When only the time-series is specified, and all other arguments are left at their default values, then ets() will automatically select the best model based on AICc.
+ets_auto = ets(train) 
+summary(ets_auto)
+```
+
+### Examine the residuals.
+>When only the time-series is specified, and all other arguments are left at their default values, then ets() will automatically select the best model based on AICc. 
+
+```{r}
+checkresiduals(ets_auto)
+```
+
+### Accuracy
+```{r}
+ets_auto_forecast = forecast(ets_auto,h=24)
+accuracy(ets_auto_forecast ,x = ts2)
+```
+
+### Visusalization Forecasts
+```{r}
+autoplot(train)+
+  autolayer(ets_auto_forecast,series="ETS - MAM (auto)",PI=F)+
+  autolayer(test)
+```
+
+# ARIMA 
+>ARIMA are the one most widely used approaches to time-series forecasting and provide complementary approaches to the problem. ARIMA models aim to describe autocorrelations in the data
+
+### Check if it's stationary or not
+```{r}
+adf.test(ts2,k = 0)
+```
+
+###  Automatic Model Selection
+> Use auto.arima to pick the best model based on AICc, sometimes it does not yield an optimal solution as it uses computational shortcuts, by setting stepwise and approximation to False, we will ensure a more extensive search.
+
+```{r}
+model_auto = auto.arima(y = train,d = 1,D = 1,stepwise = F,approximation = F)
+model_auto
+```
+
+### Model 
+```{r}
+model1 = Arima(y = train,order = c(1,1,1),seasonal = c(0,1,1),lambda = BoxCox.lambda(train))
+ggtsdisplay(residuals(model1))
+```
+
+### Accuracy
+```{r}
+model1_forecast=forecast(model1,h = 24)
+accuracy(model1_forecast, x=ts2)
+```
+
+### Visusalization Forecasts
+```{r}
+autoplot(forecast(model1,h = 24),PI=F)+
+  autolayer(test,size=1)
+```
+
+# Comparing Forecasting Models
+### Compare all the models in terms of accuracy metrics on the test sample.
+```{r}
+rbind(average_model = accuracy(f = average_model,x = ts2)[2,],
+      naive_model = accuracy(f = naive_model,x = ts2)[2,],
+      seasonal_naive_model = accuracy(f = seasonal_naive_model,x = ts2)[2,],
+      drift_model = accuracy(f = drift_model,x = ts2)[2,],
+      ses_model = accuracy(f = ses_model,x =  ts2)[2,],
+      holt_model = accuracy(f = holt_model,x = ts2)[2,],
+      holt_damped_model = accuracy(f = holt_damped_model,x =  ts2)[2,],
+      ets_auto = accuracy(ets_auto_forecast,x =  ts2)[2,],
+      arima = accuracy(model1_forecast,x= ts2)[2,]
+      )
+```
+
+
+```{r}
+autoplot(train, color='sienna')+
+  autolayer(test,size=1.05,color='seagreen2')+
+  autolayer(average_model,series = 'Average Model',PI=F)+
+  autolayer(naive_model,series = 'Naive Model',PI=F)+
+  autolayer(seasonal_naive_model,series = 'Seasonal Naive Model',PI=F)+
+  autolayer(drift_model,series = 'Seasonal Naive Model',PI=F)+
+  autolayer(ses_model,series = 'Seasonal Naive Model',PI=F)+
+  autolayer(holt_model,series = 'Holt',PI=F)+
+  autolayer(ets_auto_forecast,series = 'ETS Auto',PI=F)+
+  autolayer(model1_forecast,series = 'ARIMA',PI=F)
+```
+
+# Forcast For next 12 Months.
+```{r}
+model2 = Arima(y = ts2,order = c(1,1,1),seasonal = c(0,1,1),lambda = BoxCox.lambda(ts2))
+forecast(model2,h =12)
+```
