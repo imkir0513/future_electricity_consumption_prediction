@@ -9,7 +9,7 @@ The data cleaning and feature engineering phase involved meticulous steps to enh
 
 ## Analytics Techniques
 
-![alt text](https://github.com/imkir0513/future_electricity_consumption_prediction/blob/master/images/analytics_techniques.png)
+![alt text](https://github.com/imkir0513/future_electricity_consumption_prediction/blob/master/images/analytical_techniques.png)
 
 The analytical techniques employed in the project comprised two main components: exploratory data analysis (EDA) and time series analysis with a focus on predicting future electricity consumption based on historical trends. We utilized a range of simple forecasting models, including the Average_model, Naive model, Seasonal model, and Drift model. Additionally, they explored more advanced exponential smoothing models such as SES (Simple Exponential Smoothing), Holt’s model, and Holt’s damped model. The analysis also incorporated the ETS (Error, Trend, Seasonality) model and ARIMA (AutoRegressive Integrated Moving Average) to discern and predict patterns in the time series data, offering a comprehensive approach to understanding and forecasting electricity consumption.
 
@@ -38,5 +38,5 @@ In conclusion, the Arima model emerged as the most effective in predicting 2022 
 The recommendations for future steps involve expanding the scope of the study both temporally and geographically. Firstly, the suggestion is to extract data for additional years, providing a more comprehensive dataset for analysis. Geographically, the proposal is to broaden the study area from 13 eastern states to encompass the entire United States, offering a more inclusive perspective on electricity consumption trends. Additionally, the team advocates considering the impact of significant financial periods, specifically referencing 2007 and 2008. On the energy company front, collaboration with the government is advised to implement incentives, establish power consumption policies, regulate electricity consumption scope, and offer subsidies to residents meeting specified standards. Furthermore, cooperation with manufacturers of energy-saving products is recommended to promote and provide benefits for energy-efficient practices.
 
 <br><br>
-For more details please go to [PowerPoint](https://drive.google.com/file/d/1mPR0WUUOsWAbQH8YkCUmjbgVQ4prc76a/view?usp=sharing) ; [Report](https://drive.google.com/file/d/1WDD44K2_g2_DSsd-xDUcCRhRSTaxlIEE/view?usp=sharing)
+For more details please go to [Report](https://drive.google.com/file/d/1WDD44K2_g2_DSsd-xDUcCRhRSTaxlIEE/view?usp=sharing) ; [PowerPoint](https://drive.google.com/file/d/1mPR0WUUOsWAbQH8YkCUmjbgVQ4prc76a/view?usp=sharing)
 
